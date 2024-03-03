@@ -1,0 +1,42 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+
+def internal_linking():
+    keyword = input("Introduce la palabra clave que quieres buscar en el sitio: ")
+    sitemap = input("Introduce la URL del sitemap del sitio que quieres analizar: ")
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'}
+
+    def sitemap_scrapping(sitemap):
+        url_list = []
+        response = requests.get(sitemap, headers=headers)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'xml')  # Use 'xml' parser for parsing sitemap specifically
+            urls = soup.find_all('loc')
+            url_list = [url.text for url in urls]
+        else:
+            print(f"Failed to retrieve the sitemap: HTTP {response.status_code}")
+        return url_list
+
+    def content_extraction(urls_list, keyword):
+        contents = []
+        for url in urls_list:
+            html = requests.get(url, headers=headers)
+            soup = BeautifulSoup(html.text, 'html.parser')
+            h1 = soup.find("h1").get_text().lower() if soup.find("h1") else ""
+            paragraphs = [p.get_text() for p in soup.find_all('p')]
+            h1_occurrence = keyword.lower() in h1
+            p_occurrence = any(keyword.lower() in p.lower() for p in paragraphs)
+            contents.append([url, keyword, h1, paragraphs, h1_occurrence, p_occurrence])
+        return contents
+
+    sitemap_urls = sitemap_scrapping(sitemap)
+    contents = content_extraction(sitemap_urls, keyword)
+    contents_df = pd.DataFrame(contents, columns=["URL", "Keyword", "H1", "Paragraphs", "Keyword in H1", "Keyword in Paragraph"])
+    filtered_contents_df = contents_df[(contents_df['Keyword in H1']) | (contents_df['Keyword in Paragraph'])]
+
+    return filtered_contents_df
+
+# To use the function, you just need to call it like this:
+# result_df = internal_linking()
+# print(result_df)
